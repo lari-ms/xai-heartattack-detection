@@ -90,6 +90,18 @@ def plot_ecg_saliency(
         "V4", "V5", "V6"
     ]
 
+    # Normaliza a saliência pra [0, 1] pra poder virar cor de fundo
+    saliency_norm = (
+        saliency / saliency.max()
+        if saliency.max() > 0
+        else saliency
+    )
+
+    # Suaviza pra ficar contínuo, igual no GRAD-CAM
+    saliency_smooth = gaussian_filter1d(saliency_norm, sigma=2.0, axis=0)
+
+    cmap = plt.cm.Reds  # branco (0) -> vermelho (1)
+
     fig, axes = plt.subplots(
         12,
         1,
@@ -107,17 +119,18 @@ def plot_ecg_saliency(
         ax.plot(
             time,
             ecg[:, lead],
-            linewidth=0.8
+            color="black",
+            linewidth=0.8,
+            zorder=2
         )
 
-        # Saliency represented by point intensity
-        ax.scatter(
-            time,
-            ecg[:, lead],
-            c=saliency[:, lead],
-            cmap="hot",
-            s=5
-        )
+        # Saliência como fundo contínuo, igual no GRAD-CAM
+        for t in range(len(time) - 1):
+            color = cmap(saliency_smooth[t, lead])
+            ax.axvspan(
+                time[t], time[t + 1],
+                facecolor=color, alpha=0.5, zorder=1
+            )
 
         ax.set_ylabel(
             lead_names[lead],
@@ -145,7 +158,6 @@ def plot_ecg_saliency(
 
     plt.tight_layout()
     plt.show()
-
 
 
 def get_gradcam_improved(model, input_sample, class_idx=0, 
