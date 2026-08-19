@@ -4,6 +4,43 @@ import matplotlib.pyplot as plt
 from scipy import signal
 from sklearn.preprocessing import StandardScaler
 import pickle
+import wfdb
+import random
+
+
+def load_raw_data(df, sampling_rate, path):
+    if sampling_rate == 100:
+        data = [wfdb.rdsamp(path+f) for f in df.filename_lr]
+    else:
+        data = [wfdb.rdsamp(path+f) for f in df.filename_hr]
+    data = np.array([signal for signal, meta in data])
+    return data
+
+def split_ds(x, y, train_folds=7, val_folds=2, test_folds=1):
+
+    folds = list(range(1, y["strat_fold"].max() + 1))
+    random.shuffle(folds)
+
+    train = folds[:train_folds]
+
+    val = folds[
+        train_folds :
+        train_folds + val_folds
+    ]
+
+    test = folds[
+        train_folds + val_folds :
+    ]
+
+    train_mask = y["strat_fold"].isin(train)
+    val_mask = y["strat_fold"].isin(val)
+    test_mask = y["strat_fold"].isin(test)
+
+    return (
+        (x[train_mask], y[train_mask]),
+        (x[val_mask], y[val_mask]),
+        (x[test_mask], y[test_mask]),
+    )
 
 #baseline wander removal
 #denoising
