@@ -5,7 +5,7 @@ from scipy.ndimage import gaussian_filter1d
 from matplotlib.colors import LinearSegmentedColormap
 import pandas as pd
 
-
+'''
 def saliency_map(model, ecg, target_class="MI"):
     """
     Computes a saliency map for all 12 ECG leads.
@@ -52,6 +52,8 @@ def saliency_map(model, ecg, target_class="MI"):
                 "target_class must be 'MI' or 'NORM'"
             )
 
+        
+
     gradients = tape.gradient(target_score, x)
 
     saliency = np.abs(
@@ -59,7 +61,6 @@ def saliency_map(model, ecg, target_class="MI"):
     )
 
     return float(probability_mi.numpy()[0]), saliency
-
 
 def plot_ecg_saliency(
     model,
@@ -158,6 +159,154 @@ def plot_ecg_saliency(
 
     plt.tight_layout()
     plt.show()
+'''
+
+def saliency_map(model, ecg, target_class="MI"):
+    """
+    Computes a saliency map for all 12 ECG leads.
+
+    Parameters
+    ----------
+    model : tf.keras.Model
+        Trained binary classification model.
+
+    ecg : np.ndarray
+        ECG signal with shape (timesteps, leads).
+
+    target_class : str
+        Class being explained: "MI" or "NORM".
+
+    Returns
+    -------
+    probability_mi : float
+        Probability assigned to MI.
+
+    saliency : np.ndarray
+        Saliency map with shape (timesteps, leads).
+    """
+
+    x = tf.convert_to_tensor(
+        ecg[None, ...],
+        dtype=tf.float32
+    )
+
+    with tf.GradientTape() as tape:
+        tape.watch(x)
+
+        prediction = model(x, training=False)
+        probability_mi = prediction[:, 0]
+
+        if target_class == "MI":
+            target_score = probability_mi
+
+        elif target_class == "NORM":
+            target_score = 1.0 - probability_mi
+
+        else:
+            raise ValueError(
+                "target_class must be 'MI' or 'NORM'"
+            )
+
+    gradients = tape.gradient(target_score, x)
+
+    saliency = np.abs(
+        gradients[0].numpy()
+    )
+
+    return float(probability_mi.numpy()[0]), saliency
+
+def plot_ecg_saliency(
+    model,
+    ecg,
+    true_class=None,
+    target_class="MI",
+    dir_path = None
+):
+    """
+    Plots all ECG leads with their saliency values.
+    """
+
+    probability_mi, saliency = saliency_map(
+        model,
+        ecg,
+        target_class=target_class
+    )
+
+    predicted_class = (
+        "MI"
+        if probability_mi >= 0.5
+        else "NORM"
+    )
+
+    lead_names = [
+        "I", "II", "III",
+        "aVR", "aVL", "aVF",
+        "V1", "V2", "V3",
+        "V4", "V5", "V6"
+    ]
+
+    fig, axes = plt.subplots(
+        12,
+        1,
+        figsize=(15, 24),
+        sharex=True
+    )
+
+    time = np.arange(ecg.shape[0])
+
+    for lead in range(12):
+
+        ax = axes[lead]
+
+        # ECG waveform
+        ax.plot(
+            time,
+            ecg[:, lead],
+            linewidth=0.8
+        )
+
+        # Saliency represented by point intensity
+        ax.scatter(
+            time,
+            ecg[:, lead],
+            c=saliency[:, lead],
+            cmap="hot",
+            s=5
+        )
+
+        ax.set_ylabel(
+            lead_names[lead],
+            rotation=0,
+            labelpad=25
+        )
+
+        ax.grid(alpha=0.2)
+
+    axes[-1].set_xlabel(
+        "Tempo (amostras)"
+    )
+
+    fig.suptitle(
+        f"ECG + Saliency Map\n"
+        f"P(MI) = {probability_mi:.3f} | "
+        f"Predição = {predicted_class}"
+        + (
+            f" | Classe real = {true_class}"
+            if true_class is not None
+            else ""
+        ),
+        fontsize=14
+    )
+
+    plt.tight_layout()
+    plt.show()
+
+    if not dir_path == None:
+        filename = f'{predicted_class}_probMI_{probability_mi}'
+        fig.savefig(f'{dir_path}\\{filename}.jpg')
+
+
+
 
 
 def get_gradcam_improved(model, input_sample, class_idx=0, 
@@ -258,7 +407,7 @@ def get_gradcam_improved(model, input_sample, class_idx=0,
 
 
 def plot_ecg_with_gradcam(sample, heatmap_2d, true_label, pred_prob, sample_idx, 
-                          lead_names=None, smooth_sigma=2.0):
+                          lead_names=None, smooth_sigma=2.0, dir_path=None):
     """
     Plot all 12 ECG leads with GRAD-CAM heatmap overlay.
     
@@ -326,6 +475,10 @@ def plot_ecg_with_gradcam(sample, heatmap_2d, true_label, pred_prob, sample_idx,
     
     plt.tight_layout(rect=[0, 0, 1, 0.99])
     plt.show()
+
+    if not dir_path == None:
+        filename = f'{pred_class}_probMI_{pred_prob}'
+        fig.savefig(f'{dir_path}\\{filename}.jpg')
 
 
 

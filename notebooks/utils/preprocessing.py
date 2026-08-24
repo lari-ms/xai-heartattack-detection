@@ -7,13 +7,6 @@ import pickle
 import wfdb
 import random
 
-def aggregate_diagnostic(y_dic):
-    tmp = []
-    for key in y_dic.keys():
-        if key in agg_df.index:
-            tmp.append(agg_df.loc[key].diagnostic_class)
-    return list(set(tmp))
-
 
 
 def load_raw_data(df, sampling_rate, path):
